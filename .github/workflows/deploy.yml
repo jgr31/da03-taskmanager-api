@@ -1,0 +1,56 @@
+name: Build and Deploy to AWS EC2
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/da03-taskmanager-api:latest
+
+      - name: Deploy on EC2 by SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker network create da03-network || true
+            docker rm -f da03-mysql da03-api || true
+            docker run -d --name da03-mysql --network da03-network \
+              -e MYSQL_DATABASE=da03_taskmanager \
+              -e MYSQL_USER=da03_user \
+              -e MYSQL_PASSWORD=da03_password \
+              -e MYSQL_ROOT_PASSWORD=root_password \
+              -v da03-mysql-data:/var/lib/mysql \
+              mysql:8.0
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/da03-taskmanager-api:latest
+            docker run -d --name da03-api --network da03-network \
+              -p 80:8000 \
+              -e APP_ENV=production \
+              -e APP_DEBUG=false \
+              -e APP_URL=http://${{ secrets.EC2_HOST }} \
+              -e DB_CONNECTION=mysql \
+              -e DB_HOST=da03-mysql \
+              -e DB_PORT=3306 \
+              -e DB_DATABASE=da03_taskmanager \
+              -e DB_USERNAME=da03_user \
+              -e DB_PASSWORD=da03_password \
+              ${{ secrets.DOCKERHUB_USERNAME }}/da03-taskmanager-api:latest
