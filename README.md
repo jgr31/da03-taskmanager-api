@@ -122,3 +122,8 @@ Substitueix per la IP elàstica real:
 ```text
 http://IP_PUBLICA_EC2/api/health
 ```
+## Autenticació
+
+L'API utilitza Laravel Sanctum per generar Bearer Tokens. Els endpoints privats requereixen enviar el token dins la capçalera Authorization amb el format:
+
+Authorization: Bearer TOKEN
