@@ -31,7 +31,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-                    script: |
+          script: |
             docker network create da03-network || true
 
             docker rm -f db da03-app || true
