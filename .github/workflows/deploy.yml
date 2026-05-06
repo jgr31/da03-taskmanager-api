@@ -31,26 +31,35 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
+                    script: |
             docker network create da03-network || true
-            docker rm -f da03-mysql da03-api || true
-            docker run -d --name da03-mysql --network da03-network \
+
+            docker rm -f db da03-app || true
+
+            docker run -d --name db --network da03-network \
               -e MYSQL_DATABASE=da03_taskmanager \
               -e MYSQL_USER=da03_user \
               -e MYSQL_PASSWORD=da03_password \
-              -e MYSQL_ROOT_PASSWORD=root_password \
-              -v da03-mysql-data:/var/lib/mysql \
+              -e MYSQL_ROOT_PASSWORD=root \
               mysql:8.0
+
+            sleep 30
+
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/da03-taskmanager-api:latest
-            docker run -d --name da03-api --network da03-network \
-              -p 80:8000 \
+
+            docker run -d --name da03-app --network da03-network \
+              -p 8000:8000 \
               -e APP_ENV=production \
-              -e APP_DEBUG=false \
-              -e APP_URL=http://${{ secrets.EC2_HOST }} \
+              -e APP_DEBUG=true \
+              -e APP_KEY=base64:$(openssl rand -base64 32) \
               -e DB_CONNECTION=mysql \
-              -e DB_HOST=da03-mysql \
+              -e DB_HOST=db \
               -e DB_PORT=3306 \
               -e DB_DATABASE=da03_taskmanager \
               -e DB_USERNAME=da03_user \
               -e DB_PASSWORD=da03_password \
               ${{ secrets.DOCKERHUB_USERNAME }}/da03-taskmanager-api:latest
+
+            sleep 10
+            docker exec da03-app php artisan config:clear || true
+            docker exec da03-app php artisan migrate --force || true
